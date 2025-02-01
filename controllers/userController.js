@@ -1,4 +1,6 @@
 import { uploadPicture } from "../middleware/uploadPictureMiddleware.js";
+import Comment from "../models/Comment.js";
+import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { fileRemover } from "../utils/fileRemover.js";
 
@@ -217,6 +219,38 @@ const getAllUsers = async (req, res, next) => {
     }
 };
 
+const deleteUser = async (req, res, next) => {
+    try {
+        let user = await User.findById(req.params.userId);
+
+        if(!user) {
+            throw new Error("User not found");
+        }
+
+        const postsToDelete = await Post.find({ user: user._id });
+        const postIdsToDelete = postsToDelete.map((post) => post._id);
+
+        await Comment.deleteMany({
+            post: { $in: postIdsToDelete},
+        });
+
+        await Post.deleteMany({
+            _id: { $in: postIdsToDelete},
+        });
+
+        postsToDelete.forEach((post) => {
+            fileRemover(post.photo);
+        });
+
+        await user.remove();
+        fileRemover(user.avatar);
+
+        res.status(200).json({ message: "User is deleted successfully"})
+
+    } catch (error) {
+        next(error)
+    }
+}
 
 export {
     registerUser,
@@ -224,5 +258,6 @@ export {
     userProfile,
     updateProfile,
     updateProfilePicture,
-    getAllUsers
+    getAllUsers,
+    deleteUser
 }
