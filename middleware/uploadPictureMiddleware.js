@@ -1,9 +1,13 @@
 import multer from "multer";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename)
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, "/tmp"); // Simpan sementara di /tmp
+        cb(null, path.join(__dirname, "../uploads"));
     },
     filename: (req, file, cb) => {
         cb(null, `${Date.now()}-${file.originalname}`);
@@ -12,18 +16,16 @@ const storage = multer.diskStorage({
 
 const uploadPicture = multer({
     storage: storage,
-    limits: { fileSize: 1 * 1000000 }, // 1MB
-    fileFilter: (req, file, cb) => {
-        const fileTypes = /jpeg|jpg|png/;
-        const ext = path.extname(file.originalname).toLowerCase();
-        const mimeType = fileTypes.test(file.mimetype);
-        const extName = fileTypes.test(ext);
-
-        if (mimeType && extName) {
-            return cb(null, true);
+    limits: {
+        fileSize: 1 * 1000000,
+    },
+    fileFilter: function(req, file, cb) {
+        let ext = path.extname(file.originalname);
+        if (ext !== ".png" && ext !== ".jpg" && ext !== ".jpeg") {
+            return cb(new Error("Only images are allowed"));
         }
-        cb(new Error("Only images (jpg, jpeg, png) are allowed"));
+        cb(null, true);
     },
 });
 
-export { uploadPicture };
+export { uploadPicture }
