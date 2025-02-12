@@ -1,5 +1,5 @@
 import { Schema, model } from "mongoose";
-const bcrypt = require('bcrypt');
+import bcrypt from 'bcryptjs';
 const { hash, compare } = bcrypt;
 import jwt from 'jsonwebtoken';
 const { sign } = jwt;
