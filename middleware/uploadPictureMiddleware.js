@@ -1,31 +1,27 @@
 import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import dotenv from "dotenv";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename)
+dotenv.config();
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, "../uploads"));
-    },
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
+
+// Konfigurasi Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, // Your Cloudinary cloud name
+    api_key: process.env.CLOUDINARY_API_KEY, // Your Cloudinary API key
+    api_secret: process.env.CLOUDINARY_API_SECRET, // Your Cloudinary API secret
+});
+
+// Konfigurasi Storage Multer untuk Cloudinary
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: "post_images",  // Folder penyimpanan di Cloudinary
+        allowed_formats: ["jpg", "jpeg", "png"],
     },
 });
 
-const uploadPicture = multer({
-    storage: storage,
-    limits: {
-        fileSize: 1 * 1000000,
-    },
-    fileFilter: function(req, file, cb) {
-        let ext = path.extname(file.originalname);
-        if (ext !== ".png" && ext !== ".jpg" && ext !== ".jpeg") {
-            return cb(new Error("Only images are allowed"));
-        }
-        cb(null, true);
-    },
-});
+const uploadPicture = multer({ storage });
 
-export { uploadPicture }
+export { uploadPicture, cloudinary };

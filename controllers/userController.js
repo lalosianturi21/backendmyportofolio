@@ -1,4 +1,5 @@
 import { uploadPicture } from "../middleware/uploadPictureMiddleware.js";
+import { cloudinary } from "../middleware/uploadPictureMiddleware.js";
 import Comment from "../models/Comment.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
@@ -139,48 +140,38 @@ const updateProfilePicture = async (req, res, next) => {
 
     upload(req, res, async function (err) {
       if (err) {
-        const error = new Error(
-          "An unknown error occured when uploading " + err.message
-        );
-        next(error);
-      } else {
-        // every thing went well
-        if (req.file) {
-          let filename;
-          let updatedUser = await User.findById(req.user._id);
-          filename = updatedUser.avatar;
-          if (filename) {
-            fileRemover(filename);
-          }
-          updatedUser.avatar = req.file.filename;
-          await updatedUser.save();
-          res.json({
-            _id: updatedUser._id,
-            avatar: updatedUser.avatar,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            verified: updatedUser.verified,
-            admin: updatedUser.admin,
-            token: await updatedUser.generateJWT(),
-          });
-        } else {
-          let filename;
-          let updatedUser = await User.findById(req.user._id);
-          filename = updatedUser.avatar;
-          updatedUser.avatar = "";
-          await updatedUser.save();
-          fileRemover(filename);
-          res.json({
-            _id: updatedUser._id,
-            avatar: updatedUser.avatar,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            verified: updatedUser.verified,
-            admin: updatedUser.admin,
-            token: await updatedUser.generateJWT(),
-          });
-        }
+        const error = new Error("An error occurred while uploading: " + err.message);
+        return next(error);
       }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      let updatedUser = await User.findById(req.user._id);
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Delete old avatar from Cloudinary if it exists
+      if (updatedUser.avatar) {
+        const publicId = updatedUser.avatar.split("/").pop().split(".")[0];
+        await cloudinary.uploader.destroy(`post_images/${publicId}`);
+      }
+
+      // Update user avatar
+      updatedUser.avatar = req.file.path;
+      await updatedUser.save();
+
+      res.json({
+        _id: updatedUser._id,
+        avatar: updatedUser.avatar,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        verified: updatedUser.verified,
+        admin: updatedUser.admin,
+        token: await updatedUser.generateJWT(),
+      });
     });
   } catch (error) {
     next(error);
@@ -228,35 +219,44 @@ const deleteUser = async (req, res, next) => {
   try {
       let user = await User.findById(req.params.userId);
 
-      if(!user) {
+      if (!user) {
           throw new Error("User not found");
       }
 
       const postsToDelete = await Post.find({ user: user._id });
       const postIdsToDelete = postsToDelete.map((post) => post._id);
 
-      await Comment.deleteMany({
-          post: { $in: postIdsToDelete },
-      });
+      // Hapus semua komentar yang terkait dengan post user
+      await Comment.deleteMany({ post: { $in: postIdsToDelete } });
 
-      await Post.deleteMany({
-          _id: { $in: postIdsToDelete },
-      });
+      // Hapus semua post yang dimiliki oleh user
+      await Post.deleteMany({ _id: { $in: postIdsToDelete } });
 
-      postsToDelete.forEach((post) => {
-          fileRemover(post.photo);
-      });
+      // Hapus semua foto dari post di Cloudinary
+      for (const post of postsToDelete) {
+          if (post.photo) {
+              const publicId = post.photo.split("/").pop().split(".")[0];
+              await cloudinary.uploader.destroy(`post_images/${publicId}`);
+          }
+      }
 
+      // Hapus avatar user dari Cloudinary jika ada
+      if (user.avatar) {
+          const publicId = user.avatar.split("/").pop().split(".")[0];
+          await cloudinary.uploader.destroy(`user_avatars/${publicId}`);
+      }
+
+      // Hapus user dari database
       await user.remove();
-      fileRemover(user.avatar);
 
-      // Menggunakan status 200 untuk memberikan respons yang lebih informatif
+      // Kirim respon sukses
       res.status(200).json({ message: "User has been deleted successfully" });
 
   } catch (error) {
       next(error);
   }
-}
+};
+
 
 
 export {
