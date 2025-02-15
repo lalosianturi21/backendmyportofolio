@@ -8,6 +8,7 @@ const createPost = async (req, res, next) => {
         const post = new Post({
             title: "sample title",
             caption: "sample caption",
+            github: "https://github.com/",
             slug: uuidv4(),
             body: {
                 type: "doc",
@@ -25,42 +26,56 @@ const createPost = async (req, res, next) => {
 };
 
 const updatePost = async (req, res, next) => {
-    try {
-        const post = await Post.findOne({ slug: req.params.slug });
+  try {
+      console.log("Request file:", req.file); // Debugging
 
-        if (!post) {
-            return next(new Error("Post not found"));
-        }
+      const post = await Post.findOne({ slug: req.params.slug });
 
-        const upload = uploadPicture.single("postPicture");
+      if (!post) {
+          return next(new Error("Post not found"));
+      }
 
-        upload(req, res, async function (err) {
-            if (err) return next(new Error(`Upload error: ${err.message}`));
+      let requestData;
+      try {
+          requestData = JSON.parse(req.body.document);
+      } catch (error) {
+          return next(new Error("Invalid JSON format in request body"));
+      }
 
-            const { title, caption, slug, body, categories } = JSON.parse(req.body.document);
+      const { title, caption, github, slug, body, categories } = requestData;
 
-            post.title = title || post.title;
-            post.caption = caption || post.caption;
-            post.slug = slug || post.slug;
-            post.body = body || post.body;
-            post.categories = categories || post.categories;
+      post.title = title || post.title;
+      post.caption = caption || post.caption;
+      post.github = github || post.github;
+      post.slug = slug || post.slug;
+      post.body = body || post.body;
+      post.categories = categories || post.categories;
 
-            // Hapus gambar lama dari Cloudinary jika ada gambar baru diunggah
-            if (req.file) {
-                if (post.photo) {
-                    const publicId = post.photo.split("/").pop().split(".")[0];
-                    await cloudinary.uploader.destroy(`post_images/${publicId}`);
-                }
-                post.photo = req.file.path; // URL dari Cloudinary
-            }
+      // Hanya perbarui foto jika ada file yang diunggah
+      if (req.file) {
+          console.log("Uploading new image to Cloudinary...");
+          try {
+              if (post.photo) {
+                  console.log("Deleting old image:", post.photo);
+                  const publicId = post.photo.split("/").pop().split(".")[0];
+                  await cloudinary.uploader.destroy(`post_images/${publicId}`);
+              }
+              post.photo = req.file.path; // Simpan URL baru dari Cloudinary
+              console.log("New image uploaded:", post.photo);
+          } catch (uploadError) {
+              return next(new Error(`Cloudinary error: ${uploadError.message}`));
+          }
+      } else {
+          console.log("No new image uploaded.");
+      }
 
-            const updatedPost = await post.save();
-            return res.json(updatedPost);
-        });
-    } catch (error) {
-        next(error);
-    }
+      const updatedPost = await post.save();
+      return res.json(updatedPost);
+  } catch (error) {
+      next(error);
+  }
 };
+
 
 const deletePost = async (req, res, next) => {
     try {

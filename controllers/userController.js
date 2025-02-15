@@ -133,7 +133,6 @@ const updateProfile = async (req, res, next) => {
     next(error);
   }
 };
-
 const updateProfilePicture = async (req, res, next) => {
   try {
     const upload = uploadPicture.single("profilePicture");
@@ -144,34 +143,55 @@ const updateProfilePicture = async (req, res, next) => {
         return next(error);
       }
 
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
       let updatedUser = await User.findById(req.user._id);
       if (!updatedUser) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Delete old avatar from Cloudinary if it exists
-      if (updatedUser.avatar) {
-        const publicId = updatedUser.avatar.split("/").pop().split(".")[0];
-        await cloudinary.uploader.destroy(`post_images/${publicId}`);
+      // Jika pengguna ingin menghapus foto profil tanpa menggantinya
+      if (req.body.removeAvatar === "true") {
+        if (updatedUser.avatar) {
+          const publicId = updatedUser.avatar.split("/").pop().split(".")[0];
+          await cloudinary.uploader.destroy(`post_images/${publicId}`);
+        }
+
+        updatedUser.avatar = ""; // Hapus avatar dari database
+        await updatedUser.save();
+
+        return res.json({
+          _id: updatedUser._id,
+          avatar: updatedUser.avatar,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          verified: updatedUser.verified,
+          admin: updatedUser.admin,
+          token: await updatedUser.generateJWT(),
+        });
       }
 
-      // Update user avatar
-      updatedUser.avatar = req.file.path;
-      await updatedUser.save();
+      // Jika ada file baru yang diunggah, hapus gambar lama
+      if (req.file) {
+        if (updatedUser.avatar) {
+          const publicId = updatedUser.avatar.split("/").pop().split(".")[0];
+          await cloudinary.uploader.destroy(`post_images/${publicId}`);
+        }
 
-      res.json({
-        _id: updatedUser._id,
-        avatar: updatedUser.avatar,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        verified: updatedUser.verified,
-        admin: updatedUser.admin,
-        token: await updatedUser.generateJWT(),
-      });
+        updatedUser.avatar = req.file.path;
+        await updatedUser.save();
+
+        return res.json({
+          _id: updatedUser._id,
+          avatar: updatedUser.avatar,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          verified: updatedUser.verified,
+          admin: updatedUser.admin,
+          token: await updatedUser.generateJWT(),
+        });
+      }
+
+      return res.status(400).json({ message: "No file uploaded" });
+
     });
   } catch (error) {
     next(error);
