@@ -5,6 +5,7 @@ const PostSchema = new Schema (
         title: { type: String, required: true },
         caption: { type: String, required: true },
         github: { type: String, required: true },
+        demo: { type: String, required: true },
         slug: { type: String, required: true, unique: true},
         body: { type: Object, required: true },
         photo: { type: String, required: false },

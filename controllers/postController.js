@@ -9,6 +9,7 @@ const createPost = async (req, res, next) => {
             title: "sample title",
             caption: "sample caption",
             github: "https://github.com/",
+            demo: "https://www.com",
             slug: uuidv4(),
             body: {
                 type: "doc",
@@ -42,11 +43,12 @@ const updatePost = async (req, res, next) => {
           return next(new Error("Invalid JSON format in request body"));
       }
 
-      const { title, caption, github, slug, body, categories } = requestData;
+      const { title, caption, github, demo, slug, body, categories } = requestData;
 
       post.title = title || post.title;
       post.caption = caption || post.caption;
       post.github = github || post.github;
+      post.demo = demo || post.demo;
       post.slug = slug || post.slug;
       post.body = body || post.body;
       post.categories = categories || post.categories;
